@@ -1,9 +1,5 @@
 <script setup>
-<<<<<<< HEAD
 import { ref, watch, onMounted } from 'vue';
-=======
-import { ref, onMounted } from 'vue';
->>>>>>> 5efdd950217d68a9ad1f459d208c68272cea1235
 import { useQuery, useMutation } from '@vue/apollo-composable';
 import { gql } from '@apollo/client/core';
 import { FilterMatchMode } from '@primevue/core/api';
@@ -13,20 +9,15 @@ import Loader from '@/components/Loader.vue'; // Import the Loader component
 
 const toast = useToast();
 const dt = ref();
-<<<<<<< HEAD
 const projects = ref([]);
-=======
-const projects = ref([]); // Will be populated from the GraphQL query
-const teams = ref([]); // List of all teams
-const projetEquipes = ref([]); // Many-to-many relationship between projects and teams
->>>>>>> 5efdd950217d68a9ad1f459d208c68272cea1235
 const projectDialog = ref(false);
 const deleteProjectDialog = ref(false);
 const deleteProjectsDialog = ref(false);
 const project = ref({});
 const selectedProjects = ref([]);
 const submitted = ref(false);
-const loading = ref(false);
+const loadingSave = ref(false); // Separate loading state for saving
+const loadingDelete = ref(false); // Separate loading state for deleting
 
 const filters = ref({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS }
@@ -38,7 +29,6 @@ const statuses = ref([
     { label: 'END', value: 'end' }
 ]);
 
-<<<<<<< HEAD
 // GraphQL Queries
 const GET_PROJECTS = gql`
     query GetProjects {
@@ -165,46 +155,6 @@ watch(projectsError, (error) => {
 });
 
 // Project CRUD Operations
-=======
-// GraphQL Query to Fetch Projects
-const GET_PROJECTS = gql`
-  query GetProjects {
-    projets {
-      idProjet
-      nom_projet
-      description_projet
-      date_debut_projet
-      date_fin_projet
-      statut_projet
-    }
-  }
-`;
-
-// GraphQL Mutation to Delete a Project
-const DELETE_PROJECT = gql`
-  mutation DeleteProjet($id: String!) {
-    deleteProjet(id: $id) {
-      success
-      message
-    }
-  }
-`;
-
-// Use Apollo Client to Fetch Projects
-const { result, loading, error } = useQuery(GET_PROJECTS);
-
-// Use Apollo Client to Delete a Project
-const { mutate: deleteProjetMutation } = useMutation(DELETE_PROJECT);
-
-// Watch for changes in the result and update the projects ref
-onMounted(() => {
-  if (result.value) {
-    projects.value = result.value.projets;
-  }
-});
-
-// Helper Functions
->>>>>>> 5efdd950217d68a9ad1f459d208c68272cea1235
 const openNew = () => {
     project.value = {
         nom_projet: '',
@@ -241,7 +191,7 @@ const saveProject = async () => {
 
     if (!validateForm()) return;
 
-    loading.value = true;
+    loadingSave.value = true;
 
     try {
         const projectData = {
@@ -285,7 +235,7 @@ const saveProject = async () => {
             life: 3000
         });
     } finally {
-        loading.value = false;
+        loadingSave.value = false;
     }
 };
 
@@ -312,7 +262,418 @@ const confirmDeleteProject = (proj) => {
 };
 
 const deleteProject = async () => {
-<<<<<<< HEAD
+    loadingDelete.value = true;
+    try {
+        const { data } = await deleteProjetMutation({ id: project.value.idProjet });
+        if (data.deleteProjet.success) {
+            await refetch();
+            toast.add({
+                severity: 'success',
+                summary: 'Success',
+                detail: data.deleteProjet.message,
+                life: 3000
+            });
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: data.deleteProjet.message,
+                life: 3000
+            });
+        }
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Failed to delete project',
+            life: 3000
+        });
+    } finally {
+        loadingDelete.value = false;
+        deleteProjectDialog.value = false;
+        project.value = {};
+    }
+};
+
+const confirmDeleteSelected = () => {
+    deleteProjectsDialog.value = true;
+};
+
+const deleteSelectedProjects = async () => {
+    loadingDelete.value = true;
+    try {
+        const deletePromises = selectedProjects.value.map((proj) => deleteProjetMutation({ id: proj.idProjet }));
+
+        await Promise.all(deletePromises);
+        await refetch();
+
+        toast.add({
+            severity: 'success',
+            summary: 'Success',
+            detail: 'Selected projects deleted',
+            life: 3000
+        });
+    } catch (error) {
+        console.error('Error deleting selected projects:', error);
+        toast<script setup>
+import { ref, watch, onMounted } from 'vue';
+import { useQuery, useMutation } from '@vue/apollo-composable';
+import { gql } from '@apollo/client/core';
+import { FilterMatchMode } from '@primevue/core/api';
+import { useToast } from 'primevue/usetoast';
+import ProgressSpinner from 'primevue/progressspinner';
+import Loader from '@/components/Loader.vue'; // Import the Loader component
+
+const toast = useToast();
+const dt = ref();
+const projects = ref([]);
+const projectDialog = ref(false);
+const deleteProjectDialog = ref(false);
+const deleteProjectsDialog = ref(false);
+const project = ref({});
+const selectedProjects = ref([]);
+const submitted = ref(false);
+const loadingSave = ref(false); // Separate loading state for saving
+const loadingDelete = ref(false); // Separate loading state for deleting
+
+const filters = ref({
+    global: { value: null, matchMode: FilterMatchMode.CONTAINS }
+});
+
+const statuses = ref([
+    { label: 'TODO', value: 'todo' },
+    { label: 'IN_PROGRESS', value: 'in_progress' },
+    { label: 'END', value: 'end' }
+]);
+
+// GraphQL Queries
+const GET_PROJECTS = gql`
+    query GetProjects {
+        projets {
+            idProjet
+            nom_projet
+            description_projet
+            date_debut_projet
+            date_fin_projet
+            statut_projet
+        }
+    }
+`;
+
+const CREATE_PROJECT = gql`
+    mutation CreateProjet($nom_projet: String!, $description_projet: String, $date_debut_projet: DateTime, $date_fin_projet: DateTime, $statut_projet: String) {
+        createProjet(nom_projet: $nom_projet, description_projet: $description_projet, date_debut_projet: $date_debut_projet, date_fin_projet: $date_fin_projet, statut_projet: $statut_projet) {
+            idProjet
+            nom_projet
+            description_projet
+            date_debut_projet
+            date_fin_projet
+            statut_projet
+        }
+    }
+`;
+
+const UPDATE_PROJECT = gql`
+    mutation UpdateProjet($id: String!, $nom_projet: String, $description_projet: String, $date_debut_projet: DateTime, $date_fin_projet: DateTime, $statut_projet: String) {
+        updateProjet(id: $id, nom_projet: $nom_projet, description_projet: $description_projet, date_debut_projet: $date_debut_projet, date_fin_projet: $date_fin_projet, statut_projet: $statut_projet) {
+            idProjet
+            nom_projet
+            description_projet
+            date_debut_projet
+            date_fin_projet
+            statut_projet
+        }
+    }
+`;
+
+const DELETE_PROJECT = gql`
+    mutation DeleteProjet($id: String!) {
+        deleteProjet(id: $id) {
+            success
+            message
+        }
+    }
+`;
+
+// Queries and Mutations
+const {
+    result,
+    loading: projectsLoading,
+    error: projectsError,
+    refetch
+} = useQuery(GET_PROJECTS, null, {
+    fetchPolicy: 'cache-and-network',
+    errorPolicy: 'all'
+});
+
+onMounted(async () => {
+    try {
+        await refetch();
+    } catch (error) {
+        console.error('Error refetching projects:', error);
+    }
+});
+
+// For createProject
+const { mutate: createProject } = useMutation(CREATE_PROJECT, {
+    update(cache, { data: { createProjet } }) {
+        const existingData = cache.readQuery({ query: GET_PROJECTS });
+        if (existingData) {
+            cache.writeQuery({
+                query: GET_PROJECTS,
+                data: {
+                    projets: [...existingData.projets, createProjet]
+                }
+            });
+        }
+    }
+});
+
+// For updateProject
+const { mutate: updateProject } = useMutation(UPDATE_PROJECT, {
+    update(cache, { data: { updateProjet } }) {
+        const existingData = cache.readQuery({ query: GET_PROJECTS });
+        if (existingData) {
+            cache.writeQuery({
+                query: GET_PROJECTS,
+                data: {
+                    projets: existingData.projets.map((p) => (p.idProjet === updateProjet.idProjet ? updateProjet : p))
+                }
+            });
+        }
+    }
+});
+
+// For deleteProject
+const { mutate: deleteProjetMutation } = useMutation(DELETE_PROJECT);
+
+// Watch for data changes
+watch(result, (newResult) => {
+    if (newResult?.projets) {
+        projects.value = newResult.projets.map((p) => ({
+            ...p,
+            date_debut_projet: p.date_debut_projet ? new Date(p.date_debut_projet) : null,
+            date_fin_projet: p.date_fin_projet ? new Date(p.date_fin_projet) : null
+        }));
+    }
+});
+
+// Error handling
+watch(projectsError, (error) => {
+    if (error) {
+        console.error('Error loading projects:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Failed to load projects',
+            life: 3000
+        });
+    }
+});
+
+// Project CRUD Operations
+const openNew = () => {
+    project.value = {
+        nom_projet: '',
+        description_projet: '',
+        date_debut_projet: null,
+        date_fin_projet: null,
+        statut_projet: 'todo'
+    };
+    submitted.value = false;
+    projectDialog.value = true;
+};
+
+const editProject = (proj) => {
+    project.value = { ...proj };
+    projectDialog.value = true;
+};
+
+const hideDialog = () => {
+    projectDialog.value = false;
+    submitted.value = false;
+};
+
+const formatDateForDB = (date) => {
+    if (!date) return null;
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const saveProject = async () => {
+    submitted.value = true;
+
+    if (!validateForm()) return;
+
+    loadingSave.value = true;
+
+    try {
+        const projectData = {
+            nom_projet: project.value.nom_projet,
+            description_projet: project.value.description_projet,
+            date_debut_projet: formatDateForDB(project.value.date_debut_projet),
+            date_fin_projet: formatDateForDB(project.value.date_fin_projet),
+            statut_projet: project.value.statut_projet
+        };
+
+        if (project.value.idProjet) {
+            await updateProject({
+                id: project.value.idProjet,
+                ...projectData
+            });
+            toast.add({
+                severity: 'success',
+                summary: 'Success',
+                detail: 'Project updated',
+                life: 3000
+            });
+        } else {
+            await createProject(projectData);
+            toast.add({
+                severity: 'success',
+                summary: 'Success',
+                detail: 'Project created',
+                life: 3000
+            });
+        }
+
+        await refetch();
+        projectDialog.value = false;
+        project.value = {};
+    } catch (error) {
+        console.error('Error saving project:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Failed to save project',
+            life: 3000
+        });
+    } finally {
+        loadingSave.value = false;
+    }
+};
+
+const formatDBDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+};
+
+const validateForm = () => {
+    const nameError = validateName(project.value.nom_projet);
+    const descriptionError = validateDescription(project.value.description_projet);
+    const startDateError = validateDate(project.value.date_debut_projet, true);
+    const endDateError = validateDate(project.value.date_fin_projet, false);
+    const dateRangeError = validateEndDate(project.value.date_debut_projet, project.value.date_fin_projet);
+
+    return !(nameError || descriptionError || startDateError || endDateError || dateRangeError);
+};
+
+// Delete Operations
+const confirmDeleteProject = (proj) => {
+    project.value = proj;
+    deleteProjectDialog.value = true;
+};
+
+const deleteProject = async () => {
+    loadingDelete.value = true;
+    try {
+        const { data } = await deleteProjetMutation({ id: project.value.idProjet });
+        if (data.deleteProjet.success) {
+            await refetch();
+            toast.add({
+                severity: 'success',
+                summary: 'Success',
+                detail: data.deleteProjet.message,
+                life: 3000
+            });
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: data.deleteProjet.message,
+                life: 3000
+            });
+        }
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Failed to delete project',
+            life: 3000
+        });
+    } finally {
+        loadingDelete.value = false;
+        deleteProjectDialog.value = false;
+        project.value = {};
+    }
+};
+
+deleteProjectDialog.value = false;
+        project.value = {};
+    }
+
+
+const confirmDeleteSelected = () => {
+    deleteProjectsDialog.value = true;
+};
+
+const deleteSelectedProjects = async () => {
+    loadingDelete.value = true;
+    try {
+        const deletePromises = selectedProjects.value.map((proj) => deleteProjetMutation({ id: proj.idProjet }));
+
+        await Promise.all(deletePromises);
+        await refetch();
+
+        toast.add({
+            severity: 'success',
+            summary: 'Success',
+            detail: 'Selected projects deleted',
+            life: 3000
+        });
+    } catch (error) {
+        console.error('Error deleting selected projects:', error);
+        
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Failed to delete selected projects',
+            life: 3000
+        });
+    } finally {
+        loadingDelete.value = false; // Corrected line
+    }
+
+
+const formatDBDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+};
+
+const validateForm = () => {
+    const nameError = validateName(project.value.nom_projet);
+    const descriptionError = validateDescription(project.value.description_projet);
+    const startDateError = validateDate(project.value.date_debut_projet, true);
+    const endDateError = validateDate(project.value.date_fin_projet, false);
+    const dateRangeError = validateEndDate(project.value.date_debut_projet, project.value.date_fin_projet);
+
+    return !(nameError || descriptionError || startDateError || endDateError || dateRangeError);
+};
+
+// Delete Operations
+const confirmDeleteProject = (proj) => {
+    project.value = proj;
+    deleteProjectDialog.value = true;
+};
+
+const deleteProject = async () => {
     try {
         const { data } = await deleteProjetMutation({ id: project.value.idProjet });
         if (data.deleteProjet.success) {
@@ -343,44 +704,6 @@ const deleteProject = async () => {
         deleteProjectDialog.value = false;
         project.value = {};
     }
-=======
-  try {
-    const { data } = await deleteProjetMutation({ id: project.value.idProjet });
-
-    if (data.deleteProjet.success) {
-      // Remove the project from the local state
-      projects.value = projects.value.filter((val) => val.idProjet !== project.value.idProjet);
-      // Remove all relationships for this project
-      projetEquipes.value = projetEquipes.value.filter((pe) => pe.idProjet !== project.value.idProjet);
-
-      // Show success message
-      toast.add({ severity: 'success', summary: 'Successful', detail: data.deleteProjet.message, life: 3000 });
-    } else {
-      // Show error message if deletion was not successful
-      toast.add({ severity: 'error', summary: 'Error', detail: data.deleteProjet.message, life: 3000 });
-    }
-  } catch (error) {
-    // Handle any errors
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete project.', life: 3000 });
-    console.error('Error deleting project:', error);
-  } finally {
-    // Close the delete confirmation dialog
-    deleteProjectDialog.value = false;
-    project.value = {};
-  }
-};
-
-const findIndexById = (id) => {
-    return projects.value.findIndex((proj) => proj.idProjet === id);
-};
-
-const createId = () => {
-    return Math.random().toString(36).substring(2, 9);
-};
-
-const exportCSV = () => {
-    dt.value.exportCSV();
->>>>>>> 5efdd950217d68a9ad1f459d208c68272cea1235
 };
 
 const confirmDeleteSelected = () => {
@@ -444,29 +767,11 @@ const validateDate = (date, isStartDate) => {
     return null;
 };
 
-<<<<<<< HEAD
 const validateEndDate = (startDate, endDate) => {
     if (!startDate || !endDate) return null;
     if (new Date(endDate) < new Date(startDate)) return 'End date must be after start date';
     return null;
 };
-=======
-// Add sample teams on component mount
-onMounted(() => {
-    for (let i = 1; i <= 25; i++) {
-        teams.value.push({
-            idEquipe: createId(),
-            nom_equipe: `Team ${i}`,
-            description_equipe: `Description for Team ${i}`
-        });
-    }
-
-    // Add some sample relationships
-    addEquipeToProject(projects.value[0]?.idProjet, teams.value[0].idEquipe);
-    addEquipeToProject(projects.value[0]?.idProjet, teams.value[1].idEquipe);
-    addEquipeToProject(projects.value[1]?.idProjet, teams.value[0].idEquipe);
-});
->>>>>>> 5efdd950217d68a9ad1f459d208c68272cea1235
 </script>
 
 <template>
