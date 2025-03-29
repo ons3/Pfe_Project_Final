@@ -44,7 +44,7 @@ export const employeeResolvers = {
           nomEmployee: employee.nom_employee,
           emailEmployee: employee.email_employee,
           idEquipe: employee.idEquipe,
-          role: employee.role  // Added role to the response
+          role: employee.role
         };
       } catch (error) {
         console.error("Error fetching employee:", error);
@@ -90,7 +90,7 @@ export const employeeResolvers = {
             nomEmployee: employee.nom_employee,
             emailEmployee: employee.email_employee,
             idEquipe: employee.idEquipe,
-            role: employee.role  // Added role to search results
+            role: employee.role
           })),
         };
       } catch (error) {
@@ -171,7 +171,6 @@ export const employeeResolvers = {
       { pool }: { pool: sql.ConnectionPool }
     ) => {
       try {
-        // Ensure admin is the one updating roles
         const request = pool.request().input('id', sql.UniqueIdentifier, id);
         const updates: string[] = [];
 
@@ -247,7 +246,6 @@ export const employeeResolvers = {
       { pool }: { pool: sql.ConnectionPool }
     ) => {
       try {
-        // Ensure admin is the one deleting employees
         await pool.request()
           .input('id', sql.UniqueIdentifier, id)
           .query(`DELETE FROM Employee WHERE idEmployee = @id`);

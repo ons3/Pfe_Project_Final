@@ -9,7 +9,7 @@ export const employeeTypeDefs = gql`
     role: String!  # Added role field
     equipe: Equipe
   }
-
+  
   type DeleteEmployeeResponse {
     success: Boolean!
     message: String
