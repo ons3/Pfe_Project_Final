@@ -15,10 +15,15 @@ const taches = ref([]);
 const addEmployeeDialog = ref(false);
 const editEmployeeDialog = ref(false);
 const deleteEmployeeDialog = ref(false);
+const disableEmployeeDialog = ref(false);
+const resetPasswordDialog = ref(false); // Dialog for password reset
 const employee = ref({});
 const submitted = ref(false);
-const searchQuery = ref('');
-const employeeToDelete = ref(null); // To store the employee to delete
+const searchQuery = ref(''); // Search bar query
+const employeeToDelete = ref(null);
+const disabledUntil = ref(null);
+const newPassword = ref('');
+const emailForReset = ref(''); // Email to be used for reset
 
 // Fetch employees
 const fetchTaches = async () => {
@@ -31,13 +36,23 @@ const fetchTaches = async () => {
             nomEmployee
             emailEmployee
             role
+            disabledUntil
           }
         }
       }
     `;
     const response = await axios.post('http://localhost:3000/graphql', { query });
-    taches.value = response.data.data.searchEmployees.employees;
+
+    if (response.data?.data?.searchEmployees?.employees) {
+      taches.value = response.data.data.searchEmployees.employees.map(emp => ({
+        ...emp,
+        disabledUntil: emp.disabledUntil ? new Date(emp.disabledUntil) : null
+      }));
+    } else {
+      throw new Error('Invalid response structure');
+    }
   } catch (error) {
+    console.error("Error fetching employees:", error);
     toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load employees', life: 3000 });
   }
 };
@@ -49,96 +64,41 @@ const filteredEmployees = computed(() => {
   );
 });
 
-// Open new employee dialog
-const openNew = () => {
-  employee.value = { nomEmployee: '', emailEmployee: '', role: '', password: '' };
-  submitted.value = false;
-  addEmployeeDialog.value = true;
+// Open reset password dialog
+const openResetPasswordDialog = (emp) => {
+  employee.value = emp;
+  emailForReset.value = emp.emailEmployee; // Set the email for reset
+  newPassword.value = ''; // Reset the new password field
+  resetPasswordDialog.value = true; // Open the reset password dialog
 };
 
-// Open edit employee dialog
-const openEdit = (emp) => {
-  employee.value = { ...emp, password: '' };
-  editEmployeeDialog.value = true;
+// Send reset password email (mutation)
+const sendResetPasswordEmail = async () => {
+  if (!newPassword.value) {
+    toast.add({ severity: 'warn', summary: 'Warning', detail: 'Please enter a new password', life: 3000 });
+    return;
+  }
+
+  try {
+    const response = await axios.post('http://localhost:3000/send-email', {
+      email: emailForReset.value,
+      password: newPassword.value,
+    });
+    toast.add({ severity: 'success', summary: 'Success', detail: 'Password reset email sent', life: 3000 });
+    resetPasswordDialog.value = false;
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to send password reset email', life: 3000 });
+  }
 };
 
-// Hide dialog
+// Hide all dialogs
 const hideDialog = () => {
   addEmployeeDialog.value = false;
   editEmployeeDialog.value = false;
   deleteEmployeeDialog.value = false;
+  disableEmployeeDialog.value = false;
+  resetPasswordDialog.value = false;
   submitted.value = false;
-};
-
-// Update employee (mutation)
-const updateEmployee = async () => {
-  try {
-    const mutation = `
-      mutation {
-        updateEmployee(
-          id: "${employee.value.idEmployee}",
-          nomEmployee: "${employee.value.nomEmployee}",
-          emailEmployee: "${employee.value.emailEmployee}",
-          role: "${employee.value.role}"
-        ) {
-          idEmployee
-          nomEmployee
-          emailEmployee
-          role
-        }
-      }
-    `;
-
-    const response = await axios.post('http://localhost:3000/graphql', { query: mutation });
-
-    // Handle the response
-    const updatedEmployee = response.data.data.updateEmployee;
-    const index = taches.value.findIndex(emp => emp.idEmployee === updatedEmployee.idEmployee);
-
-    if (index !== -1) {
-      taches.value[index] = updatedEmployee;
-    }
-
-    toast.add({ severity: 'success', summary: 'Success', detail: 'Employee updated successfully', life: 3000 });
-    hideDialog();
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to update employee', life: 3000 });
-  }
-};
-
-// Delete employee (mutation)
-const deleteEmployee = async () => {
-  try {
-    const mutation = `
-      mutation {
-        deleteEmployee(id: "${employeeToDelete.value.idEmployee}") {
-          success
-          message
-        }
-      }
-    `;
-
-    const response = await axios.post('http://localhost:3000/graphql', { query: mutation });
-
-    const result = response.data.data.deleteEmployee;
-    if (result.success) {
-      // Remove deleted employee from the list
-      taches.value = taches.value.filter(emp => emp.idEmployee !== employeeToDelete.value.idEmployee);
-      toast.add({ severity: 'success', summary: 'Success', detail: result.message, life: 3000 });
-    } else {
-      toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete employee', life: 3000 });
-    }
-
-    hideDialog();
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete employee', life: 3000 });
-  }
-};
-
-// Open delete employee confirmation dialog
-const confirmDeleteEmployee = (emp) => {
-  employeeToDelete.value = emp; // Store the employee to delete
-  deleteEmployeeDialog.value = true;
 };
 
 onMounted(() => {
@@ -146,123 +106,89 @@ onMounted(() => {
 });
 </script>
 
-
-
 <template>
-    <div class="employee-page p-4">
-      <div class="card">
-        <Toolbar class="mb-4">
-          <template #start>
-            <Button label="New" icon="pi pi-plus" class="p-button-success" @click="openNew" />
-          </template>
-          <template #end>
-            <InputText v-model="searchQuery" placeholder="Search by name..." class="p-inputtext-sm p-mr-2" />
-          </template>
-        </Toolbar>
+  <div class="employee-page p-4">
+    <div class="card">
+      <Toolbar class="mb-4">
+        <template #start>
+          <Button label="New" icon="pi pi-plus" class="p-button-success" @click="openNew" />
+        </template>
+        <template #end>
+          <InputText v-model="searchQuery" placeholder="Search by name..." class="p-inputtext-sm p-mr-2" />
+        </template>
+      </Toolbar>
 
-        <DataTable :value="filteredEmployees" ref="dt" paginator :rows="10" class="p-datatable-gridlines">
-          <Column field="idEmployee" header="ID" />
-          <Column field="nomEmployee" header="Name" />
-          <Column field="emailEmployee" header="Email" />
-          <Column field="role" header="Role" />
-          <Column header="Actions">
+      <DataTable :value="filteredEmployees" ref="dt" paginator :rows="10" class="p-datatable-gridlines">
+        <Column field="idEmployee" header="ID" />
+        <Column field="nomEmployee" header="Name" />
+        <Column field="emailEmployee" header="Email" />
+        <Column field="role" header="Role" />
+        <Column field="disabledUntil" header="Disabled Until">
             <template #body="{ data }">
-              <Button icon="pi pi-pencil" class="p-button-rounded p-button-warning p-mr-2" @click="openEdit(data)" />
-              <Button icon="pi pi-trash" class="p-button-rounded p-button-danger" @click="confirmDeleteEmployee(data)" />
+                {{ data.disabledUntil ? new Date(data.disabledUntil).toLocaleDateString('en-US') : 'Active' }}
             </template>
-          </Column>
-        </DataTable>
+        </Column>
+
+        <Column header="Actions">
+          <template #body="{ data }">
+            <Button icon="pi pi-pencil" class="p-button-rounded p-button-warning p-mr-2" @click="openEdit(data)" />
+            <Button icon="pi pi-lock" class="p-button-rounded p-button-secondary p-mr-2" @click="openDisableDialog(data)" />
+            <Button icon="pi pi-trash" class="p-button-rounded p-button-danger" @click="confirmDeleteEmployee(data)" />
+            <Button icon="pi pi-envelope" class="p-button-rounded p-button-info" @click="openResetPasswordDialog(data)" />
+          </template>
+        </Column>
+      </DataTable>
+    </div>
+
+    <!-- Reset Password Dialog -->
+    <Dialog v-model:visible="resetPasswordDialog" header="Reset Password" modal class="p-dialog-responsive" :style="{ width: '30%' }">
+      <div class="p-fluid">
+        <div class="field">
+          <label for="email">Email</label>
+          <InputText id="email" v-model="emailForReset" disabled class="p-inputtext-lg" />
+        </div>
+        <div class="field">
+          <label for="newPassword">New Password</label>
+          <InputText id="newPassword" v-model="newPassword" required type="password" class="p-inputtext-lg" />
+        </div>
       </div>
 
-      <!-- New Employee Dialog -->
-      <Dialog v-model:visible="addEmployeeDialog" header="New Employee" modal class="p-dialog-responsive" :style="{ width: '30%' }">
-        <div class="p-fluid">
-          <div class="field">
-            <label for="nomEmployee">Name</label>
-            <InputText id="nomEmployee" v-model="employee.nomEmployee" required autofocus class="p-inputtext-lg" />
-          </div>
-          <div class="field">
-            <label for="emailEmployee">Email</label>
-            <InputText id="emailEmployee" v-model="employee.emailEmployee" required class="p-inputtext-lg" />
-          </div>
-          <div class="field">
-            <label for="role">Role</label>
-            <InputText id="role" v-model="employee.role" required class="p-inputtext-lg" />
-          </div>
-          <div class="field">
-            <label for="password">Password</label>
-            <InputText id="password" v-model="employee.password" type="password" required class="p-inputtext-lg" />
-          </div>
-        </div>
-        <template #footer>
-          <Button label="Cancel" icon="pi pi-times" class="p-button-text" @click="hideDialog" />
-          <Button label="Save" icon="pi pi-check" class="p-button-primary" @click="saveNewEmployee" />
-        </template>
-      </Dialog>
-
-      <!-- Edit Employee Dialog -->
-      <Dialog v-model:visible="editEmployeeDialog" header="Edit Employee" modal class="p-dialog-responsive" :style="{ width: '30%' }">
-        <div class="p-fluid">
-          <div class="field">
-            <label for="nomEmployee">Name</label>
-            <InputText id="nomEmployee" v-model="employee.nomEmployee" required autofocus class="p-inputtext-lg" />
-          </div>
-          <div class="field">
-            <label for="emailEmployee">Email</label>
-            <InputText id="emailEmployee" v-model="employee.emailEmployee" required class="p-inputtext-lg" />
-          </div>
-          <div class="field">
-            <label for="role">Role</label>
-            <InputText id="role" v-model="employee.role" required class="p-inputtext-lg" />
-          </div>
-        </div>
-        <template #footer>
-            <Button label="Cancel" icon="pi pi-times" class="p-button-text" @click="hideDialog" />
-            <Button label="Update" icon="pi pi-check" class="p-button-primary" @click="updateEmployee" />
-        </template>
-      </Dialog>
-
-      <!-- Delete Employee Confirmation Dialog -->
-      <Dialog v-model:visible="deleteEmployeeDialog" header="Delete Employee" modal class="p-dialog-responsive" :style="{ width: '30%' }">
-        <div class="p-fluid">
-          <p>Are you sure you want to delete the employee?</p>
-        </div>
-        <template #footer>
-          <Button label="Cancel" icon="pi pi-times" class="p-button-text" @click="hideDialog" />
-          <Button label="Delete" icon="pi pi-check" class="p-button-danger" @click="deleteEmployee" />
-        </template>
-      </Dialog>
-    </div>
+      <template #footer>
+        <Button label="Cancel" icon="pi pi-times" class="p-button-text" @click="hideDialog" />
+        <Button label="Send" icon="pi pi-check" class="p-button-text" @click="sendResetPasswordEmail" />
+      </template>
+    </Dialog>
+  </div>
 </template>
 
 
-  <style scoped>
-  .employee-page {
-      max-width: 1200px;
-      margin: 0 auto;
-  }
+<style scoped>
+.employee-page {
+    max-width: 1200px;
+    margin: 0 auto;
+}
 
-  .card {
-      background: var(--surface-card);
-      padding: 2rem;
-      border-radius: 10px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  }
+.card {
+    background: var(--surface-card);
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
 
-  .field {
-      margin-bottom: 1.5rem;
-  }
+.field {
+    margin-bottom: 1.5rem;
+}
 
-  .p-fluid .field label {
-      font-weight: bold;
-      margin-bottom: 0.5rem;
-      display: block;  /* Ensure labels are block-level elements */
-  }
+.p-fluid .field label {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    display: block;  /* Ensure labels are block-level elements */
+}
 
-  .p-fluid .field .p-inputtext-lg {
-      width: 100%;
-      padding: 0.75rem;  /* Add padding for better spacing */
-      font-size: 1rem;
-      border-radius: 5px;
-  }
-  </style>
+.p-fluid .field .p-inputtext-lg {
+    width: 100%;
+    padding: 0.75rem;  /* Add padding for better spacing */
+    font-size: 1rem;
+    border-radius: 5px;
+}
+</style>

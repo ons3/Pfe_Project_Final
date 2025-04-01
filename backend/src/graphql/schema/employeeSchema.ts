@@ -8,6 +8,7 @@ export const employeeTypeDefs = gql`
     idEquipe: String
     role: String!  # Added role field
     equipe: Equipe
+    disabledUntil: String
   }
   
   type DeleteEmployeeResponse {
@@ -52,6 +53,7 @@ export const employeeTypeDefs = gql`
       passwordEmployee: String
       idEquipe: String
       role: String  # Optionally update role
+      disabledUntil: String
     ): Employee
 
     deleteEmployee(id: String!): DeleteEmployeeResponse

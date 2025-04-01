@@ -160,13 +160,14 @@ export const employeeResolvers = {
 
     updateEmployee: async (
       _: any,
-      { id, nomEmployee, emailEmployee, passwordEmployee, idEquipe, role }: {
+      { id, nomEmployee, emailEmployee, passwordEmployee, idEquipe, role, disabledUntil  }: {
         id: string;
         nomEmployee?: string;
         emailEmployee?: string;
         passwordEmployee?: string;
         idEquipe?: string;
         role?: string;
+        disabledUntil ?: string;
       },
       { pool }: { pool: sql.ConnectionPool }
     ) => {
@@ -200,10 +201,16 @@ export const employeeResolvers = {
           updates.push('role = @role');
           request.input('role', sql.VarChar, role);
         }
+        if (disabledUntil) {
+          updates.push('disabledUntil = @disabledUntil');
+          request.input('disabledUntil', sql.VarChar, disabledUntil);
+        }
+
 
         if (updates.length === 0) {
           throw new Error("No updates provided");
         }
+        console.log("Updates: ", updates);
 
         const query = `
           UPDATE Employee
@@ -216,7 +223,7 @@ export const employeeResolvers = {
         const updatedEmployee = await pool.request()
           .input('id', sql.UniqueIdentifier, id)
           .query(`
-            SELECT idEmployee, nom_employee, email_employee, idEquipe, role
+            SELECT idEmployee, nom_employee, email_employee, idEquipe, role, disabledUntil
             FROM Employee
             WHERE idEmployee = @id;
           `);
@@ -233,6 +240,7 @@ export const employeeResolvers = {
           emailEmployee: employee.email_employee,
           idEquipe: employee.idEquipe,
           role: employee.role,  // Return updated role
+          disabledUntil: employee.disabledUntil,
         };
       } catch (error) {
         console.error("Error updating employee:", error);
